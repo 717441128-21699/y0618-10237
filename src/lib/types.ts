@@ -60,6 +60,7 @@ export interface UserProfile {
   skippedPeriods: string[];
   renewed: boolean;
   tagWeights: Record<PreferenceTag, number>;
+  categoryWeights: Record<ProductCategory, number>;
 }
 
 export interface ProductReview {

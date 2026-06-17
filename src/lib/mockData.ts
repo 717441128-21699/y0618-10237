@@ -421,6 +421,16 @@ export const SEED_USER: UserProfile = {
     户外: 1.0,
     香氛: 1.0,
   },
+  categoryWeights: {
+    运动: 1.0,
+    美食: 1.0,
+    美妆: 1.0,
+    文创: 1.0,
+    科技: 1.0,
+    家居: 1.0,
+    香氛: 1.0,
+    户外: 1.0,
+  },
 };
 
 export const SEED_TESTIMONIALS = [

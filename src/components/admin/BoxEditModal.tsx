@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, Fragment } from "react";
-import { Check, Search, AlertTriangle, ShieldAlert, Package, TrendingUp } from "lucide-react";
+import { Check, Search, AlertTriangle, ShieldAlert, Package, TrendingUp, Plus, X, Zap } from "lucide-react";
 import { Modal } from "./Modal";
 import { Button } from "@/components/Button";
 import { ChipInput } from "@/components/ChipInput";
@@ -37,6 +37,8 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
   const [status, setStatus] = useState<BoxPeriodStatus>("preview");
   const [search, setSearch] = useState("");
   const [confirmSave, setConfirmSave] = useState(false);
+  const [restockList, setRestockList] = useState<string[]>([]);
+  const [showRestock, setShowRestock] = useState(false);
 
   useEffect(() => {
     if (editing) {
@@ -253,6 +255,105 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
             <div className="pt-3 border-t border-cream-100/5 text-xs text-coral-300 flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
               部分用户可能因过敏或已有物品导致可匹配数量不足 3 件。建议增加无禁忌商品或减少过敏原。
+            </div>
+          )}
+
+          {!healthCheck.canSave && (
+            <div className="pt-3 border-t border-cream-100/5 mt-3">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-amber-300">
+                  <Zap className="w-3 h-3" /> 补货队列
+                </div>
+                <button
+                  onClick={() => {
+                    const needed = Math.max(0, 3 - healthCheck.mainCount);
+                    const usedIds = new Set([...productsSel, ...alternatives]);
+                    const available = products.filter((p) => !usedIds.has(p.id));
+                    const safeProducts = available.filter((p) => p.allergens.length === 0);
+                    const candidates = safeProducts.length > 0 ? safeProducts : available;
+                    const picks = candidates.slice(0, needed + 2).map((p) => p.id);
+                    setRestockList(picks);
+                    setShowRestock(true);
+                  }}
+                  className="text-[10px] px-2 py-1 rounded-full bg-amber-300/10 text-amber-300 hover:bg-amber-300/20 transition-colors"
+                >
+                  一键生成补货清单
+                </button>
+              </div>
+              <div className="text-[10px] text-cream-400 mb-2">
+                缺口：还需 {Math.max(0, 3 - healthCheck.mainCount)} 件主选商品
+              </div>
+
+              {showRestock && restockList.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
+                  {restockList.map((pid) => {
+                    const p = products.find((x) => x.id === pid);
+                    if (!p) return null;
+                    const inMain = productsSel.includes(pid);
+                    const inAlt = alternatives.includes(pid);
+                    return (
+                      <div key={pid} className="flex items-center gap-2 bg-ink-800/70 rounded-xl p-2">
+                        <img src={p.image} alt="" className="w-8 h-8 rounded-md object-cover" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-cream-200 truncate">{p.name}</div>
+                          <div className="text-[10px] text-cream-400">
+                            {p.category} · {p.tags.join("/")}
+                            {p.allergens.length > 0 && <span className="text-coral-300 ml-1">⚠ 含{p.allergens.join(",")}</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              if (!inMain) {
+                                setProductsSel([...productsSel, pid]);
+                                setAlternatives(alternatives.filter((x) => x !== pid));
+                              }
+                            }}
+                            disabled={inMain}
+                            className={cn(
+                              "px-2 py-1 rounded-lg text-[10px] font-mono uppercase transition-colors",
+                              inMain
+                                ? "bg-amber-300 text-ink-900"
+                                : "bg-ink-700 text-amber-300 hover:bg-amber-300/20",
+                            )}
+                          >
+                            {inMain ? <Check className="w-3 h-3 inline" /> : "+ 主选"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (!inAlt) {
+                                setAlternatives([...alternatives, pid]);
+                                setProductsSel(productsSel.filter((x) => x !== pid));
+                              }
+                            }}
+                            disabled={inAlt}
+                            className={cn(
+                              "px-2 py-1 rounded-lg text-[10px] font-mono uppercase transition-colors",
+                              inAlt
+                                ? "bg-coral-300 text-ink-900"
+                                : "bg-ink-700 text-coral-300 hover:bg-coral-300/20",
+                            )}
+                          >
+                            {inAlt ? <Check className="w-3 h-3 inline" /> : "+ 备选"}
+                          </button>
+                          <button
+                            onClick={() => setRestockList(restockList.filter((x) => x !== pid))}
+                            className="p-1 rounded-lg text-cream-400 hover:bg-cream-100/10 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {showRestock && restockList.length === 0 && (
+                <div className="mt-3 text-center py-4 text-xs text-cream-400">
+                  商品池已无可用商品，请先添加新商品
+                </div>
+              )}
             </div>
           )}
         </div>

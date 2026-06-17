@@ -75,8 +75,9 @@ export function matchProductsForUser(
   const scored: MatchExplanation[] = candidates.map(({ id, isAlt }) => {
     const p = productMap.get(id)!;
     const tagHits = p.tags.filter((t) => user.preferenceTags.includes(t));
-    const weightMul = tagHits.reduce((s, t) => s * (user.tagWeights?.[t as keyof typeof user.tagWeights] ?? 1), 1);
-    const score = tagHits.length * 2 * weightMul + p.avgRating;
+    const tagWeightMul = tagHits.reduce((s, t) => s * (user.tagWeights?.[t as keyof typeof user.tagWeights] ?? 1), 1);
+    const categoryWeight = user.categoryWeights?.[p.category as keyof typeof user.categoryWeights] ?? 1;
+    const score = tagHits.length * 2 * tagWeightMul * categoryWeight + p.avgRating;
     return { productId: id, score, tagHits, isAlternative: isAlt };
   });
 

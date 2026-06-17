@@ -95,6 +95,16 @@ export const useStore = create<AppState>()(
               户外: 1.0,
               香氛: 1.0,
             },
+            categoryWeights: {
+              运动: 1.0,
+              美食: 1.0,
+              美妆: 1.0,
+              文创: 1.0,
+              科技: 1.0,
+              家居: 1.0,
+              香氛: 1.0,
+              户外: 1.0,
+            },
           },
         }),
 
@@ -153,18 +163,27 @@ export const useStore = create<AppState>()(
           const isHighScore = review.rating >= 4;
           const isDuplicate = (review.comment?.includes("重复") ?? false) || review.likeScore < 30;
 
-          const newWeights = { ...state.currentUser?.tagWeights };
+          const newTagWeights = { ...state.currentUser?.tagWeights };
+          const newCategoryWeights = { ...state.currentUser?.categoryWeights };
           const newExistingItems = [...(state.currentUser?.existingItems ?? [])];
 
           if (product) {
             product.tags.forEach((tag) => {
-              const current = newWeights[tag as keyof typeof newWeights] ?? 1;
+              const current = newTagWeights[tag as keyof typeof newTagWeights] ?? 1;
               if (isHighScore) {
-                newWeights[tag as keyof typeof newWeights] = Math.min(2.5, current + 0.2);
+                newTagWeights[tag as keyof typeof newTagWeights] = Math.min(2.5, current + 0.2);
               } else if (isLowScore) {
-                newWeights[tag as keyof typeof newWeights] = Math.max(0.3, current - 0.3);
+                newTagWeights[tag as keyof typeof newTagWeights] = Math.max(0.3, current - 0.3);
               }
             });
+
+            const catCurrent = newCategoryWeights[product.category as keyof typeof newCategoryWeights] ?? 1;
+            if (isHighScore) {
+              newCategoryWeights[product.category as keyof typeof newCategoryWeights] = Math.min(2.0, catCurrent + 0.15);
+            } else if (isLowScore || isDuplicate) {
+              newCategoryWeights[product.category as keyof typeof newCategoryWeights] = Math.max(0.4, catCurrent - 0.25);
+            }
+
             if (isDuplicate && !newExistingItems.includes(product.name)) {
               newExistingItems.push(product.name);
             }
@@ -192,7 +211,8 @@ export const useStore = create<AppState>()(
             currentUser: state.currentUser
               ? {
                   ...state.currentUser,
-                  tagWeights: newWeights,
+                  tagWeights: newTagWeights,
+                  categoryWeights: newCategoryWeights,
                   existingItems: newExistingItems,
                 }
               : null,

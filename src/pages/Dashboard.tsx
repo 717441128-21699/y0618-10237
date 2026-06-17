@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Settings2,
   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/Button";
@@ -66,8 +67,12 @@ export default function Dashboard() {
     reviews.filter((r) => r.periodId === periodId && r.userId === currentUser.id);
 
   const matchForUser = useStore((s) => s.matchForUser);
+  const currentMatch = current && !isPreview ? matchForUser(current) : { picked: [], filtered: [] };
+  const currentPickedSet = new Set(currentMatch.picked);
   const currentReviews = current ? myReviewFor(current.id) : [];
-  const currentTotal = current && !isPreview ? matchForUser(current).picked.length : 0;
+  const currentRelevantReviews = currentReviews.filter((r) => currentPickedSet.has(r.productId));
+  const currentTotal = currentMatch.picked.length;
+  const currentMissing = currentMatch.picked.filter((pid) => !currentRelevantReviews.find((r) => r.productId === pid));
 
   return (
     <div className="min-h-screen grain-overlay">
@@ -147,36 +152,68 @@ export default function Dashboard() {
                   )}
                 </div>
               ) : (
-                <div className="mt-6 flex flex-wrap gap-3">
-                  {canReviewCurrent && (
-                    <Link to={`/review/${current?.id}`} className="flex-1">
-                      <Button className="w-full">
-                        <Gift className="w-4 h-4" />
-                        {currentReviews.length > 0 && currentReviews.length < currentTotal
-                          ? "继续评价"
-                          : currentReviews.length === currentTotal && currentTotal > 0
-                            ? "查看评价"
-                            : "去评价本期"}
+                <div className="mt-6 space-y-4">
+                  <div className="flex flex-wrap gap-3">
+                    {canReviewCurrent && (
+                      <Link to={`/review/${current?.id}`} className="flex-1">
+                        <Button className="w-full">
+                          <Gift className="w-4 h-4" />
+                          {currentRelevantReviews.length > 0 && currentRelevantReviews.length < currentTotal
+                            ? `继续评价（${currentRelevantReviews.length}/${currentTotal}）`
+                            : currentRelevantReviews.length === currentTotal && currentTotal > 0
+                              ? "查看评价"
+                              : "去评价本期"}
+                        </Button>
+                      </Link>
+                    )}
+                    {canUnbox && (
+                      <Link to={`/unbox/${current?.id}`} className={canReviewCurrent ? "flex-1 sm:flex-none" : "flex-1"}>
+                        <Button variant={canReviewCurrent ? "secondary" : "primary"} className="w-full">
+                          <Gift className="w-4 h-4" />
+                          开箱揭晓
+                        </Button>
+                      </Link>
+                    )}
+                    {isPreview && (
+                      <Button variant="danger" className="flex-1 sm:flex-none" onClick={() => setSkipTarget(current?.id ?? "")}>
+                        <SkipForward className="w-4 h-4" />
+                        跳过本期
                       </Button>
-                    </Link>
+                    )}
+                    {!isPreview && !skipped && !canUnbox && !canReviewCurrent && (
+                      <div className="flex-1 flex items-center justify-center text-xs text-cream-400 px-4">
+                        评价后完成本期体验
+                      </div>
+                    )}
+                  </div>
+
+                  {canReviewCurrent && currentMissing.length > 0 && (
+                    <div className="rounded-2xl border border-amber-300/20 bg-amber-300/5 p-4">
+                      <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-300 mb-2">
+                        <AlertTriangle className="w-3 h-3" /> 还有 {currentMissing.length} 件未评价
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentMissing.slice(0, 5).map((pid) => {
+                          const p = products.find((x) => x.id === pid);
+                          return p ? (
+                            <span key={pid} className="text-xs px-2 py-1 rounded-full bg-ink-800 text-cream-300">
+                              {p.name}
+                            </span>
+                          ) : null;
+                        })}
+                        {currentMissing.length > 5 && (
+                          <span className="text-xs px-2 py-1 rounded-full text-cream-400">
+                            +{currentMissing.length - 5} 件
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   )}
-                  {canUnbox && (
-                    <Link to={`/unbox/${current?.id}`} className={canReviewCurrent ? "flex-1 sm:flex-none" : "flex-1"}>
-                      <Button variant={canReviewCurrent ? "secondary" : "primary"} className="w-full">
-                        <Gift className="w-4 h-4" />
-                        开箱揭晓
-                      </Button>
-                    </Link>
-                  )}
-                  {isPreview && (
-                    <Button variant="danger" className="flex-1 sm:flex-none" onClick={() => setSkipTarget(current?.id ?? "")}>
-                      <SkipForward className="w-4 h-4" />
-                      跳过本期
-                    </Button>
-                  )}
-                  {!isPreview && !skipped && !canUnbox && !canReviewCurrent && (
-                    <div className="flex-1 flex items-center justify-center text-xs text-cream-400 px-4">
-                      评价后完成本期体验
+
+                  {canReviewCurrent && currentMatch.filtered.length > 0 && (
+                    <div className="text-xs text-cream-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3 text-amber-300" />
+                      本期有 {currentMatch.filtered.length} 件商品因过敏、已有物品或下架被过滤
                     </div>
                   )}
                 </div>
@@ -226,6 +263,44 @@ export default function Dashboard() {
                 <TrendingUp className="w-3 h-3" />
                 偏好权重会根据你的评价自动调整，高分商品的标签会被增强
               </div>
+
+              <div className="space-y-2 mb-5 pt-4 border-t border-cream-100/5">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-cream-400/70 mb-2">品类偏好变化</div>
+                {Object.entries(currentUser.categoryWeights || {}).map(([cat, weight]) => {
+                  const delta = (weight as number) - 1;
+                  const isBoosted = delta > 0.1;
+                  const isReduced = delta < -0.1;
+                  const hasChange = isBoosted || isReduced;
+                  return (
+                    <div key={cat} className="flex items-center gap-3">
+                      <span className={cn(
+                        "text-xs min-w-[60px]",
+                        hasChange ? "text-cream-200" : "text-cream-400/50",
+                      )}>{cat}</span>
+                      <div className="flex-1 h-1.5 bg-ink-800 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all duration-500",
+                            isBoosted ? "bg-amber-300" : isReduced ? "bg-coral-400" : "bg-cream-300/20",
+                          )}
+                          style={{ width: `${Math.min(100, (weight as number) * 50)}%` }}
+                        />
+                      </div>
+                      <span className={cn(
+                        "text-xs font-mono min-w-[48px] text-right",
+                        isBoosted ? "text-amber-300" : isReduced ? "text-coral-300" : "text-cream-500",
+                      )}>
+                        {isBoosted ? `↑ ${Math.round(delta * 100)}%` : isReduced ? `↓ ${Math.round(Math.abs(delta) * 100)}%` : "基础"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-[10px] text-cream-400/50 mb-4 flex items-center gap-1.5">
+                <AlertTriangle className="w-3 h-3" />
+                低分或"重复了"的商品品类会被降温，下期减少推荐
+              </div>
+
               <div className="space-y-3 pt-4 border-t border-cream-100/5">
                 <PrefRow icon={ShieldAlert} label="过敏" value={currentUser.allergies} danger />
                 <PrefRow icon={Package} label="已有" value={currentUser.existingItems} />

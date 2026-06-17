@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Gift, Sparkles, ArrowRight, RotateCcw, Tag as TagIcon, ShieldAlert, AlertTriangle, Package } from "lucide-react";
+import { Gift, Sparkles, ArrowRight, RotateCcw, Tag as TagIcon, ShieldAlert, AlertTriangle, Package, Home, Clock, Eye } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/Button";
 import { Tag } from "@/components/Tag";
@@ -168,23 +168,81 @@ export default function Unbox() {
                     你的盲盒已抵达。本期共 <span className="text-amber-300 font-medium">{picked.length}</span> 件精选好物，根据你的偏好与禁忌智能匹配。
                   </p>
                   {hasShortage && (
-                    <div className="mb-6 text-left bg-amber-300/5 rounded-2xl p-4 border border-amber-300/20">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
-                        <div className="text-sm">
+                    <div className="mb-6 text-left bg-amber-300/5 rounded-2xl p-5 border border-amber-300/20">
+                      <div className="flex items-start gap-3 mb-4">
+                        <AlertTriangle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+                        <div>
                           <div className="text-amber-300 font-medium mb-1">本期商品少于 3 件</div>
-                          <div className="text-cream-300 text-xs">
-                            有 {filtered.length} 件商品因过敏、已有物品或下架被过滤。
-                            你可以调整偏好或等待运营补充新商品。
+                          <div className="text-cream-300 text-sm">
+                            有 {filtered.length} 件商品被过滤，以下是具体原因：
                           </div>
                         </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Link to="/subscribe">
-                          <Button size="sm" variant="coral">调整偏好</Button>
+                      <div className="space-y-2 mb-5 max-h-48 overflow-y-auto pr-2">
+                        {filtered.map((f, idx) => (
+                          <div key={idx} className="flex items-start gap-2 bg-ink-800/60 rounded-xl p-3">
+                            {f.type === "allergen" && (
+                              <>
+                                <ShieldAlert className="w-4 h-4 text-coral-300 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-coral-300 text-xs font-mono uppercase">过敏避开</span>
+                                  <div className="text-cream-200 text-sm">{f.productName}</div>
+                                  <div className="text-cream-400 text-xs">含 {f.allergen}</div>
+                                </div>
+                              </>
+                            )}
+                            {f.type === "existing" && (
+                              <>
+                                <Package className="w-4 h-4 text-amber-300 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-amber-300 text-xs font-mono uppercase">已有避开</span>
+                                  <div className="text-cream-200 text-sm">{f.productName}</div>
+                                  <div className="text-cream-400 text-xs">匹配：{f.matched}</div>
+                                </div>
+                              </>
+                            )}
+                            {f.type === "missing" && (
+                              <>
+                                <AlertTriangle className="w-4 h-4 text-coral-300 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-coral-300 text-xs font-mono uppercase">商品下架</span>
+                                  <div className="text-cream-200 text-sm">商品ID: {f.productId.slice(0, 8)}</div>
+                                  <div className="text-cream-400 text-xs">已从商品池中移除</div>
+                                </div>
+                              </>
+                            )}
+                            {f.type === "duplicate" && (
+                              <>
+                                <Package className="w-4 h-4 text-cream-300 shrink-0 mt-0.5" />
+                                <div>
+                                  <span className="text-cream-300 text-xs font-mono uppercase">重复排除</span>
+                                  <div className="text-cream-200 text-sm">{f.productName}</div>
+                                  <div className="text-cream-400 text-xs">同品类已有匹配</div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Link to="/dashboard" className="contents">
+                          <Button size="sm" variant="ghost" className="w-full flex-col gap-1 py-3">
+                            <Home className="w-4 h-4" />
+                            <span className="text-[10px]">回用户中心</span>
+                          </Button>
                         </Link>
-                        <Link to="/dashboard">
-                          <Button size="sm" variant="ghost">先不拆</Button>
+                        <button
+                          onClick={handleOpen}
+                          className="w-full flex flex-col items-center justify-center gap-1 py-3 rounded-xl bg-ink-800 border border-cream-100/10 text-cream-200 hover:bg-ink-700 hover:border-amber-300/30 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                          <span className="text-[10px]">继续看现有</span>
+                        </button>
+                        <Link to="/dashboard" className="contents">
+                          <Button size="sm" variant="secondary" className="w-full flex-col gap-1 py-3">
+                            <Clock className="w-4 h-4" />
+                            <span className="text-[10px]">等运营补货</span>
+                          </Button>
                         </Link>
                       </div>
                     </div>
