@@ -30,15 +30,48 @@ export default function Review() {
   const period = boxPeriods.find((b) => b.id === periodId);
   const productMap = getProductMap(products);
 
-  const picked = period
-    ? currentUser
-      ? matchForUser(period).picked
-      : period.products
-    : [];
+  const unboxedPeriods = useStore((s) => s.unboxedPeriods);
+  const isUnboxed = period ? unboxedPeriods.includes(period.id) : false;
+
+  if (!period) {
+    return (
+      <div className="min-h-screen grain-overlay">
+        <Navbar />
+        <div className="container pt-40 text-center">
+          <p className="text-cream-400">未找到该期次。</p>
+          <Link to="/dashboard"><Button className="mt-6">返回主页</Button></Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (period.status === "preview" || !isUnboxed) {
+    return (
+      <div className="min-h-screen grain-overlay">
+        <Navbar />
+        <div className="container pt-40 text-center">
+          <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-300 mb-4">
+            {period.periodLabel}
+          </div>
+          <h1 className="font-display text-4xl text-cream-100">评价未开放</h1>
+          <p className="mt-4 text-cream-400 max-w-md mx-auto">
+            {period.status === "preview"
+              ? "本期仍在预告中，暂无法评价。"
+              : "请先完成本期开箱后再来评价。"}
+          </p>
+          <Link to="/dashboard"><Button className="mt-8">返回主页</Button></Link>
+        </div>
+      </div>
+    );
+  }
 
   const existingReviews = reviews.filter(
     (r) => r.periodId === periodId && r.userId === currentUser?.id,
   );
+
+  const picked = currentUser
+    ? matchForUser(period).picked
+    : period.products;
 
   const [drafts, setDrafts] = useState<Record<string, DraftReview>>(() => {
     const init: Record<string, DraftReview> = {};
@@ -54,18 +87,6 @@ export default function Review() {
     new Set(existingReviews.map((r) => r.productId)),
   );
   const [allDone, setAllDone] = useState(false);
-
-  if (!period) {
-    return (
-      <div className="min-h-screen grain-overlay">
-        <Navbar />
-        <div className="container pt-40 text-center">
-          <p className="text-cream-400">未找到该期次。</p>
-          <Link to="/dashboard"><Button className="mt-6">返回主页</Button></Link>
-        </div>
-      </div>
-    );
-  }
 
   const updateDraft = (pid: string, patch: Partial<DraftReview>) =>
     setDrafts((d) => ({ ...d, [pid]: { ...d[pid], ...patch } }));

@@ -60,8 +60,23 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
     setSearch("");
   }, [editing, open]);
 
-  const toggle = (list: string[], setList: (v: string[]) => void, id: string) =>
-    setList(list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  const toggleMain = (id: string) => {
+    if (productsSel.includes(id)) {
+      setProductsSel(productsSel.filter((x) => x !== id));
+    } else {
+      setProductsSel([...productsSel, id]);
+      setAlternatives(alternatives.filter((x) => x !== id));
+    }
+  };
+
+  const toggleAlt = (id: string) => {
+    if (alternatives.includes(id)) {
+      setAlternatives(alternatives.filter((x) => x !== id));
+    } else {
+      setAlternatives([...alternatives, id]);
+      setProductsSel(productsSel.filter((x) => x !== id));
+    }
+  };
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
@@ -74,14 +89,18 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
       `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=${encodeURIComponent(
         `${theme} moodboard dark editorial aesthetic`,
       )}&image_size=portrait_16_9`;
+    const uniqProducts = Array.from(new Set(productsSel));
+    const uniqAlternatives = Array.from(
+      new Set(alternatives.filter((a) => !uniqProducts.includes(a))),
+    );
     const payload = {
       periodLabel: periodLabel || `${theme}期`,
       theme,
       themeDescription,
       themeMoodImage: mood,
       keywords,
-      products: productsSel,
-      alternatives,
+      products: uniqProducts,
+      alternatives: uniqAlternatives,
       shipDeadline: new Date(shipDeadline).toISOString(),
       status,
     };
@@ -201,7 +220,7 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
                       <div className="text-xs text-cream-400">{p.category} · {p.tags.join("/")}</div>
                     </div>
                     <button
-                      onClick={() => toggle(productsSel, setProductsSel, p.id)}
+                      onClick={() => toggleMain(p.id)}
                       className={cn(
                         "px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition-all",
                         isMain ? "bg-amber-300 text-ink-900" : "border border-amber-300/30 text-amber-300/70 hover:border-amber-300",
@@ -210,7 +229,7 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
                       {isMain ? <Check className="w-3 h-3 inline" /> : null} 主选
                     </button>
                     <button
-                      onClick={() => toggle(alternatives, setAlternatives, p.id)}
+                      onClick={() => toggleAlt(p.id)}
                       className={cn(
                         "px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider transition-all",
                         isAlt ? "bg-coral-300 text-ink-900" : "border border-coral-300/30 text-coral-300/70 hover:border-coral-300",

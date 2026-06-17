@@ -28,10 +28,15 @@ export function matchProductsForUser(
   period: BoxPeriod,
   productMap: Map<string, Product>,
 ): { picked: string[]; explanations: MatchExplanation[] } {
+  const seenIds = new Set<string>();
   const candidates = [
     ...period.products.map((id) => ({ id, isAlt: false })),
     ...period.alternatives.map((id) => ({ id, isAlt: true })),
-  ];
+  ].filter(({ id }) => {
+    if (seenIds.has(id)) return false;
+    seenIds.add(id);
+    return true;
+  });
 
   const safe = candidates.filter(({ id }) => {
     const p = productMap.get(id);

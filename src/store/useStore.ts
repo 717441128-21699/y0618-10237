@@ -38,6 +38,7 @@ interface AppState {
     subscriptionPlan: SubscriptionPlan;
     address: string;
   }) => void;
+  updateUserProfile: (patch: Partial<Pick<UserProfile, "preferenceTags" | "allergies" | "existingItems" | "subscriptionPlan" | "name" | "email" | "address" | "renewed">>) => void;
   updatePreferences: (patch: Partial<Pick<UserProfile, "preferenceTags" | "allergies" | "existingItems">>) => void;
   skipPeriod: (periodId: string) => void;
   unskipPeriod: (periodId: string) => void;
@@ -50,6 +51,7 @@ interface AppState {
   addProduct: (product: Omit<Product, "id" | "avgRating" | "reviewCount">) => void;
   updateProduct: (id: string, patch: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  findPeriodsUsingProduct: (productId: string) => BoxPeriod[];
 
   createBoxPeriod: (period: Omit<BoxPeriod, "id">) => void;
   updateBoxPeriod: (id: string, patch: Partial<BoxPeriod>) => void;
@@ -86,6 +88,13 @@ export const useStore = create<AppState>()(
         }),
 
       updatePreferences: (patch) =>
+        set((state) => ({
+          currentUser: state.currentUser
+            ? { ...state.currentUser, ...patch }
+            : null,
+        })),
+
+      updateUserProfile: (patch) =>
         set((state) => ({
           currentUser: state.currentUser
             ? { ...state.currentUser, ...patch }
@@ -199,7 +208,21 @@ export const useStore = create<AppState>()(
       deleteProduct: (id) =>
         set((state) => ({
           products: state.products.filter((p) => p.id !== id),
+          boxPeriods: state.boxPeriods.map((bp) => ({
+            ...bp,
+            products: bp.products.filter((pid) => pid !== id),
+            alternatives: bp.alternatives.filter((pid) => pid !== id),
+          })),
         })),
+
+      findPeriodsUsingProduct: (productId) => {
+        const { boxPeriods } = get();
+        return boxPeriods.filter(
+          (bp) =>
+            bp.products.includes(productId) ||
+            bp.alternatives.includes(productId),
+        );
+      },
 
       createBoxPeriod: (period) =>
         set((state) => ({

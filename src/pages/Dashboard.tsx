@@ -55,6 +55,10 @@ export default function Dashboard() {
   const history = [...boxPeriods].reverse();
   const skipped = isPeriodSkipped(currentUser, current?.id ?? "");
   const plan = PLAN_OPTIONS.find((p) => p.id === currentUser.subscriptionPlan);
+  const currentUnboxed = current ? unboxedPeriods.includes(current.id) : false;
+  const isPreview = current?.status === "preview";
+  const canUnbox = !isPreview && !skipped;
+  const canReviewCurrent = currentUnboxed && !skipped;
 
   const myReviewFor = (periodId: string) =>
     reviews.filter((r) => r.periodId === periodId && r.userId === currentUser.id);
@@ -123,22 +127,40 @@ export default function Dashboard() {
                     <div className="text-sm text-cream-200">已跳过本期</div>
                     <div className="text-xs text-cream-400">下期预告将在截止后生成</div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => unskipPeriod(current?.id ?? "")}>
-                    恢复本期
-                  </Button>
+                  {isPreview && (
+                    <Button variant="ghost" size="sm" onClick={() => unskipPeriod(current?.id ?? "")}>
+                      恢复本期
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Link to={`/unbox/${current?.id}`} className="flex-1">
-                    <Button className="w-full">
-                      <Gift className="w-4 h-4" />
-                      开箱揭晓
+                  {canReviewCurrent ? (
+                    <Link to={`/review/${current?.id}`} className="flex-1">
+                      <Button className="w-full">
+                        <Gift className="w-4 h-4" />
+                        去评价本期
+                      </Button>
+                    </Link>
+                  ) : canUnbox ? (
+                    <Link to={`/unbox/${current?.id}`} className="flex-1">
+                      <Button className="w-full">
+                        <Gift className="w-4 h-4" />
+                        开箱揭晓
+                      </Button>
+                    </Link>
+                  ) : null}
+                  {isPreview && (
+                    <Button variant="danger" onClick={() => setSkipTarget(current?.id ?? "")}>
+                      <SkipForward className="w-4 h-4" />
+                      跳过本期
                     </Button>
-                  </Link>
-                  <Button variant="danger" onClick={() => setSkipTarget(current?.id ?? "")}>
-                    <SkipForward className="w-4 h-4" />
-                    跳过本期
-                  </Button>
+                  )}
+                  {!isPreview && canUnbox && (
+                    <div className="flex-1 flex items-center justify-center text-xs text-cream-400 px-4">
+                      {currentUnboxed ? "评价后完成本期体验" : "已送达，快来开箱吧"}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -258,13 +280,9 @@ export default function Dashboard() {
                     </Link>
                   )}
                   {bp.status === "preview" && !isSkipped && (
-                    <Link
-                      to={`/unbox/${bp.id}`}
-                      className="mt-4 inline-flex items-center gap-1 text-sm text-amber-300 hover:gap-2 transition-all"
-                    >
-                      提前开箱
-                      <ArrowRight className="w-4 h-4" />
-                    </Link>
+                    <div className="mt-4 text-xs text-cream-400">
+                      预告中，截止后可开箱
+                    </div>
                   )}
                 </motion.div>
               );

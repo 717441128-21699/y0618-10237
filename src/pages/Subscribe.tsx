@@ -31,6 +31,7 @@ const STEPS = ["偏好", "禁忌", "套餐", "确认"];
 export default function Subscribe() {
   const navigate = useNavigate();
   const createUserProfile = useStore((s) => s.createUserProfile);
+  const updateUserProfile = useStore((s) => s.updateUserProfile);
   const currentUser = useStore((s) => s.currentUser);
   const [step, setStep] = useState(0);
   const [tags, setTags] = useState<PreferenceTag[]>(
@@ -53,7 +54,7 @@ export default function Subscribe() {
     (step === 3 && name && email && address);
 
   const finish = () => {
-    createUserProfile({
+    const payload = {
       name,
       email,
       preferenceTags: tags,
@@ -61,7 +62,12 @@ export default function Subscribe() {
       existingItems: items,
       subscriptionPlan: plan,
       address,
-    });
+    };
+    if (currentUser) {
+      updateUserProfile(payload);
+    } else {
+      createUserProfile(payload);
+    }
     navigate("/dashboard");
   };
 

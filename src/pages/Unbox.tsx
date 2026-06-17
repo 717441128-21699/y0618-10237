@@ -34,6 +34,27 @@ export default function Unbox() {
     );
   }
 
+  if (period.status === "preview") {
+    return (
+      <div className="min-h-screen grain-overlay">
+        <Navbar />
+        <div className="container pt-40 text-center">
+          <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-300 mb-4">
+            {period.periodLabel}
+          </div>
+          <h1 className="font-display text-4xl text-cream-100">{period.theme}</h1>
+          <p className="mt-4 text-cream-400 max-w-md mx-auto">
+            本期仍在预告中，暂无法开箱。截止日期后盲盒将送达，届时可在此揭晓惊喜。
+          </p>
+          <p className="mt-2 text-xs text-cream-400">
+            发货截止：{new Date(period.shipDeadline).toLocaleDateString("zh-CN")}
+          </p>
+          <Link to="/dashboard"><Button className="mt-8">返回主页</Button></Link>
+        </div>
+      </div>
+    );
+  }
+
   const productMap = getProductMap(products);
   const { picked, explanations } = currentUser
     ? matchForUser(period)

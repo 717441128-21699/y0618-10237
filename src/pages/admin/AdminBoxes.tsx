@@ -15,6 +15,7 @@ const statusMap: Record<BoxPeriodStatus, { label: string; cls: string }> = {
 };
 
 export default function AdminBoxes() {
+  const products = useStore((s) => s.products);
   const boxPeriods = useStore((s) => s.boxPeriods);
   const deleteBoxPeriod = useStore((s) => s.deleteBoxPeriod);
 
@@ -23,6 +24,9 @@ export default function AdminBoxes() {
   const [deleteTarget, setDeleteTarget] = useState<BoxPeriod | null>(null);
 
   const sorted = [...boxPeriods].reverse();
+  const productName = new Map(products.map((p) => [p.id, p.name]));
+
+  const productLabel = (id: string) => productName.get(id) ?? `（已删除）${id.slice(0, 8)}`;
 
   return (
     <AdminLayout
@@ -118,16 +122,38 @@ export default function AdminBoxes() {
                   <Eye className="w-3.5 h-3.5" /> 配置预览
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {bp.products.map((id) => (
-                    <span key={id} className="text-[10px] px-2 py-0.5 rounded-full bg-amber-300/10 text-amber-200">
-                      {id}
-                    </span>
-                  ))}
-                  {bp.alternatives.map((id) => (
-                    <span key={id} className="text-[10px] px-2 py-0.5 rounded-full bg-coral-300/10 text-coral-200 border border-coral-300/20">
-                      备·{id}
-                    </span>
-                  ))}
+                  {bp.products.map((id) => {
+                    const exists = productName.has(id);
+                    return (
+                      <span
+                        key={id}
+                        className={cn(
+                          "text-[10px] px-2 py-0.5 rounded-full",
+                          exists
+                            ? "bg-amber-300/10 text-amber-200"
+                            : "bg-coral-300/10 text-coral-300 border border-coral-300/30",
+                        )}
+                      >
+                        {productLabel(id)}
+                      </span>
+                    );
+                  })}
+                  {bp.alternatives.map((id) => {
+                    const exists = productName.has(id);
+                    return (
+                      <span
+                        key={id}
+                        className={cn(
+                          "text-[10px] px-2 py-0.5 rounded-full border",
+                          exists
+                            ? "bg-coral-300/10 text-coral-200 border-coral-300/20"
+                            : "bg-coral-300/10 text-coral-300 border-coral-300/50",
+                        )}
+                      >
+                        备·{productLabel(id)}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             </div>

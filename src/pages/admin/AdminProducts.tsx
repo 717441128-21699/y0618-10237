@@ -13,6 +13,7 @@ const CATEGORIES: (ProductCategory | "全部")[] = ["全部", "运动", "美食"
 export default function AdminProducts() {
   const products = useStore((s) => s.products);
   const deleteProduct = useStore((s) => s.deleteProduct);
+  const findPeriodsUsingProduct = useStore((s) => s.findPeriodsUsingProduct);
 
   const [search, setSearch] = useState("");
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("全部");
@@ -36,6 +37,10 @@ export default function AdminProducts() {
     setEditing(p);
     setModalOpen(true);
   };
+
+  const usedBy = deleteTarget ? findPeriodsUsingProduct(deleteTarget.id) : [];
+  const usedInProducts = usedBy.filter((bp) => bp.products.includes(deleteTarget?.id ?? ""));
+  const usedInAlternatives = usedBy.filter((bp) => bp.alternatives.includes(deleteTarget?.id ?? ""));
 
   return (
     <AdminLayout
@@ -172,9 +177,35 @@ export default function AdminProducts() {
           if (deleteTarget) deleteProduct(deleteTarget.id);
           setDeleteTarget(null);
         }}
-        title="删除商品？"
-        description={`「${deleteTarget?.name}」将被从商品池移除，此操作不可撤销。`}
-        confirmText="确认删除"
+        title={usedBy.length > 0 ? "商品正在被期次使用" : "删除商品？"}
+        description={
+          usedBy.length > 0 ? (
+            <div className="text-sm text-cream-300 space-y-2">
+              <p className="text-coral-300 flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4" />
+                「{deleteTarget?.name}」正被以下期次使用，删除后将自动从所有期次中移除：
+              </p>
+              {usedInProducts.length > 0 && (
+                <div>
+                  <span className="text-amber-300 font-mono text-xs uppercase tracking-wider">主选：</span>
+                  <span>{usedInProducts.map((bp) => bp.periodLabel).join("、")}</span>
+                </div>
+              )}
+              {usedInAlternatives.length > 0 && (
+                <div>
+                  <span className="text-coral-300 font-mono text-xs uppercase tracking-wider">备选：</span>
+                  <span>{usedInAlternatives.map((bp) => bp.periodLabel).join("、")}</span>
+                </div>
+              )}
+              <p className="text-xs text-cream-400 pt-2 border-t border-cream-100/5">
+                建议先在相应期次中替换后再删除。删除后各期商品数量会自动保持一致。
+              </p>
+            </div>
+          ) : (
+            `「${deleteTarget?.name}」将被从商品池移除，此操作不可撤销。`
+          )
+        }
+        confirmText={usedBy.length > 0 ? "确认删除并清理引用" : "确认删除"}
         variant="danger"
       />
     </AdminLayout>
