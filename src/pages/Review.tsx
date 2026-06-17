@@ -32,6 +32,9 @@ export default function Review() {
 
   const unboxedPeriods = useStore((s) => s.unboxedPeriods);
   const isUnboxed = period ? unboxedPeriods.includes(period.id) : false;
+  const isDelivered = period?.status === "delivered";
+  const isShipping = period?.status === "shipping";
+  const canReview = period && (isDelivered || isUnboxed) && period.status !== "preview";
 
   if (!period) {
     return (
@@ -45,19 +48,21 @@ export default function Review() {
     );
   }
 
-  if (period.status === "preview" || !isUnboxed) {
+  if (!canReview) {
     return (
       <div className="min-h-screen grain-overlay">
         <Navbar />
         <div className="container pt-40 text-center">
           <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-300 mb-4">
-            {period.periodLabel}
+            {period?.periodLabel}
           </div>
           <h1 className="font-display text-4xl text-cream-100">评价未开放</h1>
           <p className="mt-4 text-cream-400 max-w-md mx-auto">
-            {period.status === "preview"
+            {period?.status === "preview"
               ? "本期仍在预告中，暂无法评价。"
-              : "请先完成本期开箱后再来评价。"}
+              : isShipping
+                ? "本期正在配送中，送达后即可评价。"
+                : "请先完成本期开箱后再来评价。"}
           </p>
           <Link to="/dashboard"><Button className="mt-8">返回主页</Button></Link>
         </div>
@@ -107,6 +112,7 @@ export default function Review() {
   const doneCount = submitted.size;
   const totalCount = picked.length;
   const canFinish = doneCount === totalCount && totalCount > 0;
+  const isEmpty = picked.length === 0;
 
   return (
     <div className="min-h-screen grain-overlay">
@@ -138,7 +144,26 @@ export default function Review() {
             />
           </div>
 
-          {allDone ? (
+          {isEmpty ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card-surface rounded-3xl p-10 text-center"
+            >
+              <div className="w-16 h-16 mx-auto rounded-full bg-ink-800 flex items-center justify-center mb-6">
+                <MessageCircle className="w-7 h-7 text-cream-400/40" />
+              </div>
+              <h2 className="font-display text-2xl text-cream-100">暂无可评价商品</h2>
+              <p className="mt-3 text-cream-400 text-sm max-w-md mx-auto">
+                本期商品列表为空，可能是商品下架或配置调整导致。请稍后再试，或联系运营补充商品。
+              </p>
+              <div className="mt-8 flex justify-center gap-3">
+                <Link to="/dashboard">
+                  <Button variant="secondary">返回主页</Button>
+                </Link>
+              </div>
+            </motion.div>
+          ) : allDone ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}

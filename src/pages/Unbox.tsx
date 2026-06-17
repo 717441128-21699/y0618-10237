@@ -61,6 +61,7 @@ export default function Unbox() {
     : { picked: period.products, explanations: [] };
   const revealed = picked.slice(0, revealedCount);
   const allRevealed = revealedCount >= picked.length && picked.length > 0;
+  const missingCount = Math.max(0, period.products.length - picked.length);
 
   const handleOpen = () => {
     setOpened(true);
@@ -89,28 +90,51 @@ export default function Unbox() {
         {!opened ? (
           /* Closed box state */
           <div className="flex flex-col items-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6 }}
-              className="relative"
-            >
-              <ClosedBox />
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-center mt-8"
-            >
-              <p className="text-cream-400 mb-6 max-w-md">
-                你的盲盒已抵达。本期共 <span className="text-amber-300 font-medium">{picked.length}</span> 件精选好物，根据你的偏好与禁忌智能匹配。
-              </p>
-              <Button size="lg" onClick={handleOpen} className="animate-pulse-glow">
-                <Gift className="w-5 h-5" />
-                撕开盲盒
-              </Button>
-            </motion.div>
+            {picked.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center max-w-md"
+              >
+                <div className="w-24 h-24 mx-auto rounded-full bg-ink-800 flex items-center justify-center mb-6">
+                  <Gift className="w-10 h-10 text-cream-400/40" />
+                </div>
+                <h2 className="font-display text-2xl text-cream-100">本期盲盒为空</h2>
+                <p className="mt-3 text-cream-400 text-sm">
+                  本期可选商品暂时不足，可能是商品下架或配置调整导致。你可以跳过本期，或等待运营补充新商品后再开。
+                </p>
+                <div className="mt-8 flex justify-center gap-3">
+                  <Link to="/dashboard">
+                    <Button variant="secondary">返回主页</Button>
+                  </Link>
+                </div>
+              </motion.div>
+            ) : (
+              <>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.6 }}
+                  className="relative"
+                >
+                  <ClosedBox />
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-center mt-8"
+                >
+                  <p className="text-cream-400 mb-6 max-w-md">
+                    你的盲盒已抵达。本期共 <span className="text-amber-300 font-medium">{picked.length}</span> 件精选好物，根据你的偏好与禁忌智能匹配。
+                  </p>
+                  <Button size="lg" onClick={handleOpen} className="animate-pulse-glow">
+                    <Gift className="w-5 h-5" />
+                    撕开盲盒
+                  </Button>
+                </motion.div>
+              </>
+            )}
           </div>
         ) : (
           /* Revealed products state */

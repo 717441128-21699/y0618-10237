@@ -128,26 +128,36 @@ export const useStore = create<AppState>()(
         })),
 
       submitReview: (review) =>
-        set((state) => ({
-          reviews: [
-            ...state.reviews,
-            {
-              ...review,
-              id: uid("r"),
-              userId: state.currentUser?.id || "u_demo",
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          products: state.products.map((p) => {
-            if (p.id !== review.productId) return p;
-            const newCount = p.reviewCount + 1;
-            const newRating =
-              Math.round(
-                ((p.avgRating * p.reviewCount + review.rating) / newCount) * 10,
-              ) / 10;
-            return { ...p, reviewCount: newCount, avgRating: newRating };
-          }),
-        })),
+        set((state) => {
+          const existingIdx = state.reviews.findIndex(
+            (r) =>
+              r.productId === review.productId &&
+              r.periodId === review.periodId &&
+              r.userId === (state.currentUser?.id || "u_demo"),
+          );
+          if (existingIdx >= 0) return state;
+          return {
+            reviews: [
+              ...state.reviews,
+              {
+                ...review,
+                id: uid("r"),
+                userId: state.currentUser?.id || "u_demo",
+                createdAt: new Date().toISOString(),
+              },
+            ],
+            products: state.products.map((p) => {
+              if (p.id !== review.productId) return p;
+              const newCount = p.reviewCount + 1;
+              const newRating =
+                Math.round(
+                  ((p.avgRating * p.reviewCount + review.rating) / newCount) *
+                    10,
+                ) / 10;
+              return { ...p, reviewCount: newCount, avgRating: newRating };
+            }),
+          };
+        }),
 
       markUnboxed: (periodId) =>
         set((state) => ({

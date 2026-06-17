@@ -57,11 +57,15 @@ export default function Dashboard() {
   const plan = PLAN_OPTIONS.find((p) => p.id === currentUser.subscriptionPlan);
   const currentUnboxed = current ? unboxedPeriods.includes(current.id) : false;
   const isPreview = current?.status === "preview";
-  const canUnbox = !isPreview && !skipped;
-  const canReviewCurrent = currentUnboxed && !skipped;
-
+  const isDelivered = current?.status === "delivered";
+  const canUnbox = !isPreview && !skipped && !currentUnboxed;
+  const canReviewCurrent = !skipped && !isPreview && (isDelivered || currentUnboxed);
   const myReviewFor = (periodId: string) =>
     reviews.filter((r) => r.periodId === periodId && r.userId === currentUser.id);
+
+  const matchForUser = useStore((s) => s.matchForUser);
+  const currentReviews = current ? myReviewFor(current.id) : [];
+  const currentTotal = current && !isPreview ? matchForUser(current).picked.length : 0;
 
   return (
     <div className="min-h-screen grain-overlay">
@@ -98,7 +102,7 @@ export default function Dashboard() {
               <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between">
                 <div>
                   <span className="text-xs font-mono uppercase tracking-wider text-amber-300">
-                    本期预告
+                    {isPreview ? "本期预告" : current?.status === "shipping" ? "配送中" : "本期盲盒"}
                   </span>
                   <h2 className="font-display text-3xl text-cream-100 mt-1">{current?.theme}</h2>
                 </div>
@@ -115,17 +119,24 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                <Info icon={Package} label="商品组合" value={`${current?.products.length} 件 + ${current?.alternatives.length} 备选`} />
-                <Info icon={Calendar} label="发货截止" value={current ? new Date(current.shipDeadline).toLocaleDateString("zh-CN") : "—"} />
-              </div>
+              {!isPreview && (
+                <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                  <Info icon={Package} label="商品组合" value={`${current?.products.length} 件 + ${current?.alternatives.length} 备选`} />
+                  <Info icon={Calendar} label="发货截止" value={current ? new Date(current.shipDeadline).toLocaleDateString("zh-CN") : "—"} />
+                </div>
+              )}
+              {isPreview && (
+                <div className="mt-5 grid grid-cols-1 gap-3 text-sm">
+                  <Info icon={Calendar} label="发货截止" value={current ? new Date(current.shipDeadline).toLocaleDateString("zh-CN") : "—"} />
+                </div>
+              )}
 
               {skipped ? (
                 <div className="mt-6 rounded-2xl border border-cream-100/10 bg-ink-800 p-4 flex items-center gap-3">
                   <SkipForward className="w-5 h-5 text-cream-400" />
                   <div className="flex-1">
                     <div className="text-sm text-cream-200">已跳过本期</div>
-                    <div className="text-xs text-cream-400">下期预告将在截止后生成</div>
+                    <div className="text-xs text-cream-400">{isPreview ? "下期预告将在截止后生成" : "本期不会发货，下期继续"}</div>
                   </div>
                   {isPreview && (
                     <Button variant="ghost" size="sm" onClick={() => unskipPeriod(current?.id ?? "")}>
@@ -135,30 +146,35 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="mt-6 flex flex-wrap gap-3">
-                  {canReviewCurrent ? (
+                  {canReviewCurrent && (
                     <Link to={`/review/${current?.id}`} className="flex-1">
                       <Button className="w-full">
                         <Gift className="w-4 h-4" />
-                        去评价本期
+                        {currentReviews.length > 0 && currentReviews.length < currentTotal
+                          ? "继续评价"
+                          : currentReviews.length === currentTotal && currentTotal > 0
+                            ? "查看评价"
+                            : "去评价本期"}
                       </Button>
                     </Link>
-                  ) : canUnbox ? (
-                    <Link to={`/unbox/${current?.id}`} className="flex-1">
-                      <Button className="w-full">
+                  )}
+                  {canUnbox && (
+                    <Link to={`/unbox/${current?.id}`} className={canReviewCurrent ? "flex-1 sm:flex-none" : "flex-1"}>
+                      <Button variant={canReviewCurrent ? "secondary" : "primary"} className="w-full">
                         <Gift className="w-4 h-4" />
                         开箱揭晓
                       </Button>
                     </Link>
-                  ) : null}
+                  )}
                   {isPreview && (
-                    <Button variant="danger" onClick={() => setSkipTarget(current?.id ?? "")}>
+                    <Button variant="danger" className="flex-1 sm:flex-none" onClick={() => setSkipTarget(current?.id ?? "")}>
                       <SkipForward className="w-4 h-4" />
                       跳过本期
                     </Button>
                   )}
-                  {!isPreview && canUnbox && (
+                  {!isPreview && !skipped && !canUnbox && !canReviewCurrent && (
                     <div className="flex-1 flex items-center justify-center text-xs text-cream-400 px-4">
-                      {currentUnboxed ? "评价后完成本期体验" : "已送达，快来开箱吧"}
+                      评价后完成本期体验
                     </div>
                   )}
                 </div>
@@ -228,6 +244,11 @@ export default function Dashboard() {
               const avgRating = myReviews.length
                 ? myReviews.reduce((s, r) => s + r.rating, 0) / myReviews.length
                 : 0;
+              const periodPicked = bp.status !== "preview" ? matchForUser(bp).picked : [];
+              const totalCount = periodPicked.length;
+              const reviewCount = myReviews.length;
+              const hasMissing = !isSkipped && bp.status !== "preview" && reviewCount < totalCount && totalCount > 0;
+              const canReviewPeriod = !isSkipped && bp.status !== "preview" && (bp.status === "delivered" || unboxed);
               return (
                 <motion.div
                   key={bp.id}
@@ -258,24 +279,46 @@ export default function Dashboard() {
                       </span>
                     ) : (
                       <span className="text-[10px] font-mono uppercase text-cream-400 border border-cream-100/10 rounded-full px-2 py-0.5">
-                        待开箱
+                        {bp.status === "shipping" ? "配送中" : "待开箱"}
                       </span>
                     )}
                   </div>
 
-                  {myReviews.length > 0 && (
-                    <div className="mt-4 flex items-center gap-2">
-                      <StarRating value={avgRating} size={14} />
-                      <span className="text-xs text-cream-400">{myReviews.length} 条评价</span>
+                  {!isSkipped && bp.status !== "preview" && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <StarRating value={avgRating} size={14} />
+                        <span className="text-xs text-cream-400">
+                          {reviewCount > 0 ? avgRating.toFixed(1) : "未评"}
+                        </span>
+                      </div>
+                      <div className="text-xs text-cream-400">
+                        已评价 <span className="text-amber-300 font-medium">{reviewCount}</span> / {totalCount} 件
+                        {hasMissing && <span className="ml-2 text-coral-300">· 还有漏评</span>}
+                      </div>
+                    </div>
+                  )}
+                  {isSkipped && (
+                    <div className="mt-4 text-xs text-cream-400">
+                      本期已跳过，不计入统计
                     </div>
                   )}
 
-                  {!isSkipped && bp.status !== "preview" && (
+                  {canReviewPeriod && (
                     <Link
-                      to={unboxed ? `/review/${bp.id}` : `/unbox/${bp.id}`}
+                      to={`/review/${bp.id}`}
                       className="mt-4 inline-flex items-center gap-1 text-sm text-amber-300 hover:gap-2 transition-all"
                     >
-                      {unboxed ? "去评价" : "去开箱"}
+                      {reviewCount > 0 ? (hasMissing ? "补评" : "查看评价") : "去评价"}
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  )}
+                  {!canReviewPeriod && !isSkipped && bp.status !== "preview" && (
+                    <Link
+                      to={`/unbox/${bp.id}`}
+                      className="mt-4 inline-flex items-center gap-1 text-sm text-amber-300 hover:gap-2 transition-all"
+                    >
+                      去开箱
                       <ArrowRight className="w-4 h-4" />
                     </Link>
                   )}
