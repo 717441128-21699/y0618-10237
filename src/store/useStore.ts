@@ -1,0 +1,240 @@
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import type {
+  Product,
+  BoxPeriod,
+  UserProfile,
+  ProductReview,
+  UnsubscribeRecord,
+  UnsubscribeReasonCategory,
+  SubscriptionPlan,
+  PreferenceTag,
+  AnalyticsResult,
+} from "@/lib/types";
+import {
+  SEED_PRODUCTS,
+  SEED_BOX_PERIODS,
+  SEED_REVIEWS,
+  SEED_UNSUBSCRIBES,
+  SEED_USER,
+} from "@/lib/mockData";
+import { matchProductsForUser, computeAnalytics, getProductMap } from "@/lib/engine";
+
+interface AppState {
+  products: Product[];
+  boxPeriods: BoxPeriod[];
+  currentUser: UserProfile | null;
+  reviews: ProductReview[];
+  unsubscribes: UnsubscribeRecord[];
+  hydrated: boolean;
+  unboxedPeriods: string[];
+
+  createUserProfile: (profile: {
+    name: string;
+    email: string;
+    preferenceTags: PreferenceTag[];
+    allergies: string[];
+    existingItems: string[];
+    subscriptionPlan: SubscriptionPlan;
+    address: string;
+  }) => void;
+  updatePreferences: (patch: Partial<Pick<UserProfile, "preferenceTags" | "allergies" | "existingItems">>) => void;
+  skipPeriod: (periodId: string) => void;
+  unskipPeriod: (periodId: string) => void;
+  submitReview: (review: Omit<ProductReview, "id" | "createdAt" | "userId">) => void;
+  markUnboxed: (periodId: string) => void;
+  unsubscribe: (reason: string, category: UnsubscribeReasonCategory) => void;
+  resubscribe: () => void;
+  resetDemo: () => void;
+
+  addProduct: (product: Omit<Product, "id" | "avgRating" | "reviewCount">) => void;
+  updateProduct: (id: string, patch: Partial<Product>) => void;
+  deleteProduct: (id: string) => void;
+
+  createBoxPeriod: (period: Omit<BoxPeriod, "id">) => void;
+  updateBoxPeriod: (id: string, patch: Partial<BoxPeriod>) => void;
+  deleteBoxPeriod: (id: string) => void;
+
+  matchForUser: (period: BoxPeriod) => ReturnType<typeof matchProductsForUser>;
+  getAnalytics: () => AnalyticsResult;
+}
+
+function uid(prefix: string) {
+  return `${prefix}_${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+}
+
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      products: SEED_PRODUCTS,
+      boxPeriods: SEED_BOX_PERIODS,
+      currentUser: SEED_USER,
+      reviews: SEED_REVIEWS,
+      unsubscribes: SEED_UNSUBSCRIBES,
+      hydrated: false,
+      unboxedPeriods: [],
+
+      createUserProfile: (profile) =>
+        set({
+          currentUser: {
+            ...profile,
+            id: uid("u"),
+            subscribedAt: new Date().toISOString(),
+            skippedPeriods: [],
+            renewed: true,
+          },
+        }),
+
+      updatePreferences: (patch) =>
+        set((state) => ({
+          currentUser: state.currentUser
+            ? { ...state.currentUser, ...patch }
+            : null,
+        })),
+
+      skipPeriod: (periodId) =>
+        set((state) => ({
+          currentUser: state.currentUser
+            ? {
+                ...state.currentUser,
+                skippedPeriods: state.currentUser.skippedPeriods.includes(
+                  periodId,
+                )
+                  ? state.currentUser.skippedPeriods
+                  : [...state.currentUser.skippedPeriods, periodId],
+              }
+            : null,
+        })),
+
+      unskipPeriod: (periodId) =>
+        set((state) => ({
+          currentUser: state.currentUser
+            ? {
+                ...state.currentUser,
+                skippedPeriods: state.currentUser.skippedPeriods.filter(
+                  (p) => p !== periodId,
+                ),
+              }
+            : null,
+        })),
+
+      submitReview: (review) =>
+        set((state) => ({
+          reviews: [
+            ...state.reviews,
+            {
+              ...review,
+              id: uid("r"),
+              userId: state.currentUser?.id || "u_demo",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          products: state.products.map((p) => {
+            if (p.id !== review.productId) return p;
+            const newCount = p.reviewCount + 1;
+            const newRating =
+              Math.round(
+                ((p.avgRating * p.reviewCount + review.rating) / newCount) * 10,
+              ) / 10;
+            return { ...p, reviewCount: newCount, avgRating: newRating };
+          }),
+        })),
+
+      markUnboxed: (periodId) =>
+        set((state) => ({
+          unboxedPeriods: state.unboxedPeriods.includes(periodId)
+            ? state.unboxedPeriods
+            : [...state.unboxedPeriods, periodId],
+        })),
+
+      unsubscribe: (reason, category) =>
+        set((state) => ({
+          currentUser: state.currentUser
+            ? { ...state.currentUser, renewed: false }
+            : null,
+          unsubscribes: [
+            ...state.unsubscribes,
+            {
+              id: uid("un"),
+              userId: state.currentUser?.id || "u_demo",
+              reason,
+              reasonCategory: category,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        })),
+
+      resubscribe: () =>
+        set((state) => ({
+          currentUser: state.currentUser
+            ? { ...state.currentUser, renewed: true }
+            : null,
+        })),
+
+      resetDemo: () =>
+        set({
+          products: SEED_PRODUCTS,
+          boxPeriods: SEED_BOX_PERIODS,
+          currentUser: SEED_USER,
+          reviews: SEED_REVIEWS,
+          unsubscribes: SEED_UNSUBSCRIBES,
+          unboxedPeriods: [],
+        }),
+
+      addProduct: (product) =>
+        set((state) => ({
+          products: [
+            ...state.products,
+            { ...product, id: uid("p"), avgRating: 0, reviewCount: 0 },
+          ],
+        })),
+
+      updateProduct: (id, patch) =>
+        set((state) => ({
+          products: state.products.map((p) =>
+            p.id === id ? { ...p, ...patch } : p,
+          ),
+        })),
+
+      deleteProduct: (id) =>
+        set((state) => ({
+          products: state.products.filter((p) => p.id !== id),
+        })),
+
+      createBoxPeriod: (period) =>
+        set((state) => ({
+          boxPeriods: [...state.boxPeriods, { ...period, id: uid("bp") }],
+        })),
+
+      updateBoxPeriod: (id, patch) =>
+        set((state) => ({
+          boxPeriods: state.boxPeriods.map((bp) =>
+            bp.id === id ? { ...bp, ...patch } : bp,
+          ),
+        })),
+
+      deleteBoxPeriod: (id) =>
+        set((state) => ({
+          boxPeriods: state.boxPeriods.filter((bp) => bp.id !== id),
+        })),
+
+      matchForUser: (period) => {
+        const { products, currentUser } = get();
+        const productMap = getProductMap(products);
+        if (!currentUser) return { picked: [], explanations: [] };
+        return matchProductsForUser(currentUser, period, productMap);
+      },
+
+      getAnalytics: () => {
+        const { reviews, unsubscribes, products, boxPeriods } = get();
+        return computeAnalytics(reviews, unsubscribes, products, boxPeriods);
+      },
+    }),
+    {
+      name: "blindbox-monthly-store",
+      onRehydrateStorage: () => (state) => {
+        if (state) state.hydrated = true;
+      },
+    },
+  ),
+);
