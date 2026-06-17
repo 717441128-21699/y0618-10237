@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   ArrowRight,
   Settings2,
+  TrendingUp,
 } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/Button";
@@ -32,6 +33,7 @@ export default function Dashboard() {
   const unboxedPeriods = useStore((s) => s.unboxedPeriods);
   const skipPeriod = useStore((s) => s.skipPeriod);
   const unskipPeriod = useStore((s) => s.unskipPeriod);
+  const products = useStore((s) => s.products);
 
   const [skipTarget, setSkipTarget] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -189,13 +191,40 @@ export default function Dashboard() {
                 <Heart className="w-4 h-4" />
                 <span className="text-xs font-mono uppercase tracking-wider">偏好档案</span>
               </div>
-              <div className="flex flex-wrap gap-2 mb-5">
-                {currentUser.preferenceTags.map((t) => (
-                  <Tag key={t} variant="keyword">{t}</Tag>
-                ))}
+              <div className="space-y-2 mb-5">
+                {currentUser.preferenceTags.map((t) => {
+                  const weight = currentUser.tagWeights?.[t] ?? 1;
+                  const delta = weight - 1;
+                  const isBoosted = delta > 0.1;
+                  const isReduced = delta < -0.1;
+                  return (
+                    <div key={t} className="flex items-center gap-3">
+                      <Tag variant="keyword" className="min-w-[60px]">{t}</Tag>
+                      <div className="flex-1 h-1.5 bg-ink-800 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all duration-500",
+                            isBoosted ? "bg-amber-300" : isReduced ? "bg-coral-400" : "bg-cream-300/40",
+                          )}
+                          style={{ width: `${Math.min(100, weight * 40)}%` }}
+                        />
+                      </div>
+                      <span className={cn(
+                        "text-xs font-mono min-w-[48px] text-right",
+                        isBoosted ? "text-amber-300" : isReduced ? "text-coral-300" : "text-cream-400",
+                      )}>
+                        {isBoosted ? `↑ ${Math.round(delta * 100)}%` : isReduced ? `↓ ${Math.round(Math.abs(delta) * 100)}%` : "基础"}
+                      </span>
+                    </div>
+                  );
+                })}
                 {currentUser.preferenceTags.length === 0 && (
                   <span className="text-sm text-cream-400">尚未设置偏好</span>
                 )}
+              </div>
+              <div className="text-[10px] text-cream-400/70 mb-4 flex items-center gap-1.5">
+                <TrendingUp className="w-3 h-3" />
+                偏好权重会根据你的评价自动调整，高分商品的标签会被增强
               </div>
               <div className="space-y-3 pt-4 border-t border-cream-100/5">
                 <PrefRow icon={ShieldAlert} label="过敏" value={currentUser.allergies} danger />
@@ -241,14 +270,17 @@ export default function Dashboard() {
               const myReviews = myReviewFor(bp.id);
               const unboxed = unboxedPeriods.includes(bp.id);
               const isSkipped = isPeriodSkipped(currentUser, bp.id);
-              const avgRating = myReviews.length
-                ? myReviews.reduce((s, r) => s + r.rating, 0) / myReviews.length
-                : 0;
               const periodPicked = bp.status !== "preview" ? matchForUser(bp).picked : [];
+              const periodPickedSet = new Set(periodPicked);
+              const relevantReviews = myReviews.filter((r) => periodPickedSet.has(r.productId));
+              const avgRating = relevantReviews.length
+                ? relevantReviews.reduce((s, r) => s + r.rating, 0) / relevantReviews.length
+                : 0;
               const totalCount = periodPicked.length;
-              const reviewCount = myReviews.length;
+              const reviewCount = relevantReviews.length;
               const hasMissing = !isSkipped && bp.status !== "preview" && reviewCount < totalCount && totalCount > 0;
               const canReviewPeriod = !isSkipped && bp.status !== "preview" && (bp.status === "delivered" || unboxed);
+              const missingPids = periodPicked.filter((pid) => !relevantReviews.find((r) => r.productId === pid));
               return (
                 <motion.div
                   key={bp.id}
@@ -296,6 +328,20 @@ export default function Dashboard() {
                         已评价 <span className="text-amber-300 font-medium">{reviewCount}</span> / {totalCount} 件
                         {hasMissing && <span className="ml-2 text-coral-300">· 还有漏评</span>}
                       </div>
+                      {hasMissing && (
+                        <div className="mt-2 pt-2 border-t border-cream-100/5 text-[11px] text-cream-400">
+                          还差：
+                          {missingPids.map((pid, idx) => {
+                            const p = products.find((x) => x.id === pid);
+                            return (
+                              <span key={pid} className="text-amber-300/80">
+                                {idx > 0 && "、"}
+                                {p ? p.name : "（商品已下架）"}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                   {isSkipped && (

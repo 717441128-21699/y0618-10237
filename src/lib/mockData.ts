@@ -411,6 +411,16 @@ export const SEED_USER: UserProfile = {
   subscribedAt: "2026-01-15T10:00:00",
   skippedPeriods: [],
   renewed: true,
+  tagWeights: {
+    运动: 1.0,
+    美食: 1.0,
+    美妆: 1.0,
+    文创: 1.0,
+    科技: 1.0,
+    家居: 1.0,
+    户外: 1.0,
+    香氛: 1.0,
+  },
 };
 
 export const SEED_TESTIMONIALS = [

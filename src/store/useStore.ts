@@ -19,6 +19,7 @@ import {
   SEED_USER,
 } from "@/lib/mockData";
 import { matchProductsForUser, computeAnalytics, getProductMap } from "@/lib/engine";
+import type { MatchResult } from "@/lib/engine";
 
 interface AppState {
   products: Product[];
@@ -57,7 +58,7 @@ interface AppState {
   updateBoxPeriod: (id: string, patch: Partial<BoxPeriod>) => void;
   deleteBoxPeriod: (id: string) => void;
 
-  matchForUser: (period: BoxPeriod) => ReturnType<typeof matchProductsForUser>;
+  matchForUser: (period: BoxPeriod) => MatchResult;
   getAnalytics: () => AnalyticsResult;
 }
 
@@ -84,6 +85,16 @@ export const useStore = create<AppState>()(
             subscribedAt: new Date().toISOString(),
             skippedPeriods: [],
             renewed: true,
+            tagWeights: {
+              运动: 1.0,
+              美食: 1.0,
+              美妆: 1.0,
+              文创: 1.0,
+              科技: 1.0,
+              家居: 1.0,
+              户外: 1.0,
+              香氛: 1.0,
+            },
           },
         }),
 
@@ -136,16 +147,38 @@ export const useStore = create<AppState>()(
               r.userId === (state.currentUser?.id || "u_demo"),
           );
           if (existingIdx >= 0) return state;
+
+          const product = state.products.find((p) => p.id === review.productId);
+          const isLowScore = review.rating < 3;
+          const isHighScore = review.rating >= 4;
+          const isDuplicate = (review.comment?.includes("重复") ?? false) || review.likeScore < 30;
+
+          const newWeights = { ...state.currentUser?.tagWeights };
+          const newExistingItems = [...(state.currentUser?.existingItems ?? [])];
+
+          if (product) {
+            product.tags.forEach((tag) => {
+              const current = newWeights[tag as keyof typeof newWeights] ?? 1;
+              if (isHighScore) {
+                newWeights[tag as keyof typeof newWeights] = Math.min(2.5, current + 0.2);
+              } else if (isLowScore) {
+                newWeights[tag as keyof typeof newWeights] = Math.max(0.3, current - 0.3);
+              }
+            });
+            if (isDuplicate && !newExistingItems.includes(product.name)) {
+              newExistingItems.push(product.name);
+            }
+          }
+
+          const newReview = {
+            ...review,
+            id: uid("r"),
+            userId: state.currentUser?.id || "u_demo",
+            createdAt: new Date().toISOString(),
+          };
+
           return {
-            reviews: [
-              ...state.reviews,
-              {
-                ...review,
-                id: uid("r"),
-                userId: state.currentUser?.id || "u_demo",
-                createdAt: new Date().toISOString(),
-              },
-            ],
+            reviews: [...state.reviews, newReview],
             products: state.products.map((p) => {
               if (p.id !== review.productId) return p;
               const newCount = p.reviewCount + 1;
@@ -156,6 +189,13 @@ export const useStore = create<AppState>()(
                 ) / 10;
               return { ...p, reviewCount: newCount, avgRating: newRating };
             }),
+            currentUser: state.currentUser
+              ? {
+                  ...state.currentUser,
+                  tagWeights: newWeights,
+                  existingItems: newExistingItems,
+                }
+              : null,
           };
         }),
 
@@ -254,7 +294,7 @@ export const useStore = create<AppState>()(
       matchForUser: (period) => {
         const { products, currentUser } = get();
         const productMap = getProductMap(products);
-        if (!currentUser) return { picked: [], explanations: [] };
+        if (!currentUser) return { picked: [], explanations: [], filtered: [] };
         return matchProductsForUser(currentUser, period, productMap);
       },
 

@@ -23,35 +23,60 @@ export interface MatchExplanation {
   isAlternative: boolean;
 }
 
+export type FilterReason =
+  | { type: "allergen"; productId: string; productName: string; allergen: string }
+  | { type: "existing"; productId: string; productName: string; matched: string }
+  | { type: "missing"; productId: string }
+  | { type: "duplicate"; productId: string; productName: string };
+
+export interface MatchResult {
+  picked: string[];
+  explanations: MatchExplanation[];
+  filtered: FilterReason[];
+}
+
 export function matchProductsForUser(
   user: UserProfile,
   period: BoxPeriod,
   productMap: Map<string, Product>,
-): { picked: string[]; explanations: MatchExplanation[] } {
+): MatchResult {
   const seenIds = new Set<string>();
+  const filtered: FilterReason[] = [];
   const candidates = [
     ...period.products.map((id) => ({ id, isAlt: false })),
     ...period.alternatives.map((id) => ({ id, isAlt: true })),
   ].filter(({ id }) => {
-    if (seenIds.has(id)) return false;
+    if (seenIds.has(id)) {
+      const p = productMap.get(id);
+      filtered.push({ type: "duplicate", productId: id, productName: p?.name ?? id });
+      return false;
+    }
     seenIds.add(id);
+    const p = productMap.get(id);
+    if (!p) {
+      filtered.push({ type: "missing", productId: id });
+      return false;
+    }
+    const allergenHit = p.allergens.find((a) => user.allergies.includes(a));
+    if (allergenHit) {
+      filtered.push({ type: "allergen", productId: id, productName: p.name, allergen: allergenHit });
+      return false;
+    }
+    const existingHit = user.existingItems.find(
+      (i) => p.name.includes(i) || p.category.includes(i),
+    );
+    if (existingHit) {
+      filtered.push({ type: "existing", productId: id, productName: p.name, matched: existingHit });
+      return false;
+    }
     return true;
   });
 
-  const safe = candidates.filter(({ id }) => {
-    const p = productMap.get(id);
-    if (!p) return false;
-    const hasAllergen = p.allergens.some((a) => user.allergies.includes(a));
-    const isDuplicate = user.existingItems.some(
-      (i) => p.name.includes(i) || p.category.includes(i),
-    );
-    return !hasAllergen && !isDuplicate;
-  });
-
-  const scored: MatchExplanation[] = safe.map(({ id, isAlt }) => {
+  const scored: MatchExplanation[] = candidates.map(({ id, isAlt }) => {
     const p = productMap.get(id)!;
     const tagHits = p.tags.filter((t) => user.preferenceTags.includes(t));
-    const score = tagHits.length * 2 + p.avgRating;
+    const weightMul = tagHits.reduce((s, t) => s * (user.tagWeights?.[t as keyof typeof user.tagWeights] ?? 1), 1);
+    const score = tagHits.length * 2 * weightMul + p.avgRating;
     return { productId: id, score, tagHits, isAlternative: isAlt };
   });
 
@@ -65,7 +90,7 @@ export function matchProductsForUser(
   const pickedSet = new Set(picked);
   const explanations = scored.filter((s) => pickedSet.has(s.productId));
 
-  return { picked, explanations };
+  return { picked, explanations, filtered };
 }
 
 export function isPeriodSkipped(user: UserProfile | null, periodId: string): boolean {

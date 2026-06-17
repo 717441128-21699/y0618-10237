@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check, Send, ChevronLeft, PartyPopper, MessageCircle } from "lucide-react";
+import { Check, Send, ChevronLeft, PartyPopper, MessageCircle, AlertTriangle } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/Button";
 import { StarRating } from "@/components/StarRating";
@@ -35,6 +35,12 @@ export default function Review() {
   const isDelivered = period?.status === "delivered";
   const isShipping = period?.status === "shipping";
   const canReview = period && (isDelivered || isUnboxed) && period.status !== "preview";
+
+  const { picked, filtered } = currentUser && period
+    ? matchForUser(period)
+    : { picked: period?.products ?? [], filtered: [] };
+  const hasShortage = picked.length < 3 && filtered.length > 0;
+  const isEmpty = picked.length === 0;
 
   if (!period) {
     return (
@@ -74,14 +80,12 @@ export default function Review() {
     (r) => r.periodId === periodId && r.userId === currentUser?.id,
   );
 
-  const picked = currentUser
-    ? matchForUser(period).picked
-    : period.products;
+  const relevantReviews = existingReviews.filter((r) => picked.includes(r.productId));
 
   const [drafts, setDrafts] = useState<Record<string, DraftReview>>(() => {
     const init: Record<string, DraftReview> = {};
     picked.forEach((pid) => {
-      const ex = existingReviews.find((r) => r.productId === pid);
+      const ex = relevantReviews.find((r) => r.productId === pid);
       init[pid] = ex
         ? { rating: ex.rating, likeScore: ex.likeScore, comment: ex.comment }
         : { rating: 0, likeScore: 50, comment: "" };
@@ -89,7 +93,7 @@ export default function Review() {
     return init;
   });
   const [submitted, setSubmitted] = useState<Set<string>>(
-    new Set(existingReviews.map((r) => r.productId)),
+    new Set(relevantReviews.map((r) => r.productId)),
   );
   const [allDone, setAllDone] = useState(false);
 
@@ -112,7 +116,6 @@ export default function Review() {
   const doneCount = submitted.size;
   const totalCount = picked.length;
   const canFinish = doneCount === totalCount && totalCount > 0;
-  const isEmpty = picked.length === 0;
 
   return (
     <div className="min-h-screen grain-overlay">
@@ -143,6 +146,29 @@ export default function Review() {
               transition={{ duration: 0.5 }}
             />
           </div>
+
+          {hasShortage && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card-surface rounded-2xl p-5 mb-6 border border-amber-300/20"
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-display text-lg text-amber-300 mb-1">本期商品少于 3 件</div>
+                  <div className="text-sm text-cream-300">
+                    有 {filtered.length} 件商品因过敏、已有物品或下架被过滤。你可以先评价现有商品，也可以调整偏好后等待下次补货。
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link to="/subscribe">
+                      <Button size="sm" variant="coral">调整偏好</Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {isEmpty ? (
             <motion.div

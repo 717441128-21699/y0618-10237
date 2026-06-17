@@ -59,6 +59,7 @@ export interface UserProfile {
   subscribedAt: string;
   skippedPeriods: string[];
   renewed: boolean;
+  tagWeights: Record<PreferenceTag, number>;
 }
 
 export interface ProductReview {

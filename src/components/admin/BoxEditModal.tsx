@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
-import { Check, Search } from "lucide-react";
+import { useState, useEffect, useMemo, Fragment } from "react";
+import { Check, Search, AlertTriangle, ShieldAlert, Package, TrendingUp } from "lucide-react";
 import { Modal } from "./Modal";
 import { Button } from "@/components/Button";
 import { ChipInput } from "@/components/ChipInput";
 import { useStore } from "@/store/useStore";
-import type { BoxPeriod, BoxPeriodStatus } from "@/lib/types";
+import type { BoxPeriod, BoxPeriodStatus, Product } from "@/lib/types";
+import { COMMON_ALLERGENS } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface Props {
   open: boolean;
@@ -34,6 +36,7 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
   const [shipDeadline, setShipDeadline] = useState("");
   const [status, setStatus] = useState<BoxPeriodStatus>("preview");
   const [search, setSearch] = useState("");
+  const [confirmSave, setConfirmSave] = useState(false);
 
   useEffect(() => {
     if (editing) {
@@ -78,11 +81,53 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
     }
   };
 
+  const healthCheck = useMemo(() => {
+    const productMap = new Map(products.map((p) => [p.id, p]));
+    const selectedProducts = productsSel.map((id) => productMap.get(id)!).filter(Boolean);
+    const altProducts = alternatives.map((id) => productMap.get(id)!).filter(Boolean);
+    const allProducts = [...selectedProducts, ...altProducts];
+
+    const allergenConflicts: { product: Product; allergen: string }[] = [];
+    allProducts.forEach((p) => {
+      p.allergens.forEach((a) => {
+        if (COMMON_ALLERGENS.includes(a)) {
+          allergenConflicts.push({ product: p, allergen: a });
+        }
+      });
+    });
+
+    const safeCount = allProducts.filter((p) => p.allergens.length === 0).length;
+    const needs3 = selectedProducts.length >= 3;
+    const matchableEstimate = Math.max(0, selectedProducts.length - Math.ceil(allergenConflicts.length / 2));
+    const lowMatchRisk = matchableEstimate < 3;
+
+    return {
+      mainCount: selectedProducts.length,
+      altCount: altProducts.length,
+      totalUnique: allProducts.length,
+      allergenConflicts,
+      safeCount,
+      needs3,
+      matchableEstimate,
+      lowMatchRisk,
+      canSave: needs3 && !lowMatchRisk,
+    };
+  }, [productsSel, alternatives, products]);
+
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const save = () => {
+  const trySave = () => {
+    if (!theme.trim() || !shipDeadline) return;
+    if (!healthCheck.needs3 || healthCheck.lowMatchRisk) {
+      setConfirmSave(true);
+    } else {
+      doSave();
+    }
+  };
+
+  const doSave = () => {
     if (!theme.trim() || !shipDeadline) return;
     const mood =
       themeMoodImage ||
@@ -110,7 +155,8 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
   };
 
   return (
-    <Modal
+    <Fragment>
+      <Modal
       open={open}
       onClose={onClose}
       title={editing ? "编辑期次" : "新增期次"}
@@ -119,11 +165,97 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={!theme.trim() || !shipDeadline}>保存期次</Button>
+          <Button
+            onClick={trySave}
+            disabled={!theme.trim() || !shipDeadline}
+            variant={healthCheck.canSave ? "primary" : "coral"}
+          >
+            {healthCheck.canSave ? "保存期次" : healthCheck.lowMatchRisk ? "强制保存（有风险）" : "强制保存（不足3件）"}
+          </Button>
         </>
       }
     >
       <div className="space-y-5">
+        {/* Health check panel */}
+        <div className={cn(
+          "rounded-2xl p-4 border",
+          healthCheck.canSave
+            ? "bg-forest-400/5 border-forest-400/20"
+            : "bg-coral-300/5 border-coral-300/20",
+        )}>
+          <div className="flex items-center gap-2 mb-3">
+            {healthCheck.canSave
+              ? <TrendingUp className="w-4 h-4 text-forest-300" />
+              : <AlertTriangle className="w-4 h-4 text-coral-300" />}
+            <span className="text-xs font-mono uppercase tracking-wider text-cream-200">期次健康检查</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="bg-ink-800/60 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-amber-300 mb-1">
+                <Package className="w-3 h-3" /> 主选
+              </div>
+              <div className={cn(
+                "text-2xl font-display font-mono",
+                healthCheck.mainCount >= 3 ? "text-forest-300" : "text-coral-300",
+              )}>
+                {healthCheck.mainCount}
+              </div>
+              <div className="text-[10px] text-cream-400">需 ≥ 3 件</div>
+            </div>
+            <div className="bg-ink-800/60 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-coral-300 mb-1">
+                <Package className="w-3 h-3" /> 备选
+              </div>
+              <div className="text-2xl font-display font-mono text-cream-200">
+                {healthCheck.altCount}
+              </div>
+              <div className="text-[10px] text-cream-400">替补品</div>
+            </div>
+            <div className="bg-ink-800/60 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-cream-300 mb-1">
+                <TrendingUp className="w-3 h-3" /> 预计可匹配
+              </div>
+              <div className={cn(
+                "text-2xl font-display font-mono",
+                healthCheck.matchableEstimate >= 3 ? "text-forest-300" : "text-coral-300",
+              )}>
+                {healthCheck.matchableEstimate}
+              </div>
+              <div className="text-[10px] text-cream-400">需 ≥ 3 件</div>
+            </div>
+          </div>
+          {healthCheck.allergenConflicts.length > 0 && (
+            <div className="pt-3 border-t border-cream-100/5">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-coral-300 mb-2">
+                <ShieldAlert className="w-3 h-3" /> 潜在禁忌冲突 ({healthCheck.allergenConflicts.length})
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {healthCheck.allergenConflicts.slice(0, 6).map((c, i) => (
+                  <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-coral-300/10 text-coral-200 border border-coral-300/20">
+                    {c.product.name} · {c.allergen}
+                  </span>
+                ))}
+                {healthCheck.allergenConflicts.length > 6 && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full text-cream-400">
+                    +{healthCheck.allergenConflicts.length - 6} 项
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          {!healthCheck.needs3 && (
+            <div className="pt-3 border-t border-cream-100/5 text-xs text-coral-300 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              主选商品不足 3 件，可能导致用户收到的盲盒件数不够。
+            </div>
+          )}
+          {healthCheck.lowMatchRisk && healthCheck.needs3 && (
+            <div className="pt-3 border-t border-cream-100/5 text-xs text-coral-300 flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              部分用户可能因过敏或已有物品导致可匹配数量不足 3 件。建议增加无禁忌商品或减少过敏原。
+            </div>
+          )}
+        </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-xs font-mono uppercase tracking-wider text-cream-400 mb-2 block">期次名称</span>
@@ -245,5 +377,23 @@ export function BoxEditModal({ open, onClose, editing }: Props) {
         </div>
       </div>
     </Modal>
+
+    <ConfirmDialog
+      open={confirmSave}
+      onClose={() => setConfirmSave(false)}
+      onConfirm={() => {
+        doSave();
+        setConfirmSave(false);
+      }}
+      title={!healthCheck.needs3 ? "主选商品不足 3 件" : "可匹配数量不足风险"}
+      description={
+        !healthCheck.needs3
+          ? "当前主选商品仅 " + healthCheck.mainCount + " 件，部分用户可能收到不足 3 件的盲盒。建议补充商品后再保存。"
+          : "预估可匹配数量仅 " + healthCheck.matchableEstimate + " 件，有 " + healthCheck.allergenConflicts.length + " 项潜在禁忌冲突。部分用户可能因过敏或已有物品导致可匹配数量不足。"
+      }
+      confirmText="确认强制保存"
+      variant="danger"
+    />
+    </Fragment>
   );
 }
